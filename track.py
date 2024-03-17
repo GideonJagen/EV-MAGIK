@@ -52,8 +52,8 @@ def predict_trajectories(model, detections, radius=0.08, nframes=7, threshold=6)
     nodes_df = pd.DataFrame(
         {
             "frame": nodes[:, 0],
-            "x": nodes[:, 1],
-            "y": nodes[:, 2],
+            "y": nodes[:, 1],
+            "x": nodes[:, 2],
             "entity": object_index,
         }
     )
@@ -72,6 +72,19 @@ def save_trajectories(traj_df, path):
         path (str): Path to save the CSV file.
     """
     traj_df.to_csv(path, index=False)
+
+
+def load_trajectories(path):
+    """
+    Load the predicted trajectories from a CSV file.
+
+    Args:
+        path (str): Path to load the CSV file.
+
+    Returns:
+        pandas.DataFrame: Predicted trajectories.
+    """
+    return pd.read_csv(path)
 
 
 def _f(d):
