@@ -165,7 +165,7 @@ def count_appearances(tracks_df):
         pandas.DataFrame: Tracks dataframe with the 'appearances' column added.
     """
     tracks = tracks_df.copy()
-    tracks["frame_count"] = tracks.groupby("entity")["frame"].cumsum()
+    tracks["frame_count"] = tracks["frame"]
     tracks["frame_count"] = tracks.groupby("entity")["frame_count"].transform(
         lambda x: x - x.iloc[0]
     )
@@ -187,7 +187,7 @@ def distance_traveled(tracks_df):
     tracks["traveled_y"] = tracks.groupby("entity")["delta_y"].cumsum()
     tracks["traveled_x"] = tracks.groupby("entity")["delta_x"].cumsum()
 
-    tracks.sort_values(["frame", "entity"], inplace=True)
+    # tracks.sort_values(["frame", "entity"], inplace=True)
 
     return tracks
 

@@ -1,7 +1,7 @@
 matplotlib>=3.8
 numpy>=1.26
 pandas>=2.2
-tensorflow
+tensorflow==2.15
 tf-keras
 h5py>=3.10
 deeptrack>=1.6
