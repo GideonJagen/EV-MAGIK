@@ -158,6 +158,38 @@ def detect(tiff_path, loadstar, batch_size=10, alpha=0.999, cutoff=1e-2, plot=Fa
     return detections_df
 
 
+def warp_xaxis(detections_df, ratio):
+    """
+    Warp the x-axis of the detected objects.
+
+    Args:
+        detections_df (pandas.DataFrame): Detected objects.
+        ratio (float): Ratio to warp the x-axis.
+
+    Returns:
+        pandas.DataFrame: Warped detected objects.
+    """
+    detections_df_w = detections_df.copy()
+    detections_df_w["centroid-0"] = detections_df_w["centroid-0"] * ratio
+    return detections_df_w
+
+
+def unwarp_xaxis(detections_df, ratio):
+    """
+    Warp the x-axis of the detected objects.
+
+    Args:
+        detections_df (pandas.DataFrame): Detected objects.
+        ratio (float): Ratio to warp the x-axis.
+
+    Returns:
+        pandas.DataFrame: Warped detected objects.
+    """
+    detections_df_w = detections_df.copy()
+    detections_df_w["centroid-0"] = detections_df_w["centroid-0"] / ratio
+    return detections_df_w
+
+
 def save_detections(detection_df, path, full=False):
     """
     Save the detected objects to a CSV file.
@@ -225,6 +257,6 @@ def _detections_to_df(detections_list, file_page_shape):
         }
     )
     detection_df["centroid-1"] /= file_page_shape[0]
-    detection_df["centroid-0"] /= file_page_shape[1] / 10
+    detection_df["centroid-0"] /= file_page_shape[1]
 
     return detection_df
