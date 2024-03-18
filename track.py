@@ -1,6 +1,10 @@
 import sys
 from pathlib import Path
 import os
+import gc
+
+import tifffile
+from tqdm import tqdm
 
 module_path = os.path.abspath(os.path.join(".."))
 sys.path.append(Path(module_path))
@@ -8,8 +12,10 @@ sys.path.append(Path(module_path))
 import deeptrack as dt
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
+from matplotlib import colormaps as cm
+
 from collections import defaultdict
-from matplotlib import cm
 import itertools
 
 
@@ -61,6 +67,112 @@ def predict_trajectories(model, detections, radius=0.08, nframes=7, threshold=6)
     print("Done!")
 
     return nodes_df
+
+
+def plot_trajectories(tracks, filepath, outpath, pages_batch_size=1, stop=None):
+    """
+    Plot the predicted trajectories.
+
+    Args:
+        trajectories (pandas.DataFrame): Predicted trajectories.
+        filepath (str): Path to the video file.
+        outpath (str): Path to save the plot.
+        pages_batch_size (int): Number of pages to process at a time, Default: 1.
+        stop (int): Stops the plotting after frame with number stop is plotted, Default: None.
+    """
+
+    file = tifffile.TiffFile(Path(filepath))
+    n_pages = len(file.pages)
+
+    top = cm.get_cmap("Oranges_r")
+    bottom = cm.get_cmap("Blues_r")
+
+    colors = np.vstack(
+        (
+            top(np.linspace(0, 1, int(np.ceil(tracks["entity"].max() / 2)))),
+            bottom(np.linspace(0, 1, int(np.ceil(tracks["entity"].max() / 2)))),
+        )
+    )
+    np.random.shuffle(colors)
+
+    if stop:
+        iterations = int(stop // pages_batch_size + 1 + (stop % pages_batch_size > 0))
+    else:
+        iterations = int(
+            tracks["frame"].max() // pages_batch_size
+            + 1
+            + (tracks["frame"].max() % pages_batch_size > 0)
+        )
+
+    for i in tqdm(range(iterations)):
+        pages = file.pages[
+            i * pages_batch_size : min((i + 1) * pages_batch_size, n_pages - 1)
+        ]
+        frames = np.array([page.asarray() for page in pages])
+        frames = frames.astype(np.float32)
+
+        # Plot
+        for f, image in enumerate(frames):
+            plt.figure(figsize=(15, 15))
+            plt.imshow(image, cmap="gray")
+            plt.text(0, 2, "Frame: " + str(f), fontsize=20, c="white")
+
+            detections = tracks[(tracks["frame"] == i * pages_batch_size + f)]
+            trail = tracks[
+                (tracks["frame"] < i * pages_batch_size + f)
+                & (tracks["frame"] >= i * pages_batch_size + f - 10)
+            ]
+
+            for t in trail["entity"].unique():
+                entity_trail = trail[trail["entity"] == t]
+                plt.plot(
+                    entity_trail["x"],
+                    entity_trail["y"],
+                    color=colors[int(t)],
+                    linewidth=1.5,
+                )
+            plt.scatter(
+                detections["x"],
+                detections["y"],
+                linewidths=1.5,
+                color=colors[detections["entity"].astype(int)],
+                marker="o",
+                s=200,
+                facecolors="none",
+            )
+
+            plt.savefig(
+                f"{Path(outpath)}/tracked_images/fig_{str(i*pages_batch_size + f).zfill(4)}.png"
+            )
+
+            # Clean up
+            plt.clf()
+            plt.close("all")
+            gc.collect()
+
+            if stop and i * pages_batch_size + f >= stop:
+                break
+
+
+def remove_still_objects(
+    tracks_df,
+    cuttoff=10,
+):
+    """
+    Remove still objects from the tracks dataframe.
+
+    Args:
+        tracks_df (pandas.DataFrame): Tracks dataframe.
+
+    Returns:
+        pandas.DataFrame: Tracks dataframe with still objects removed.
+    """
+    tracks = tracks_df.copy()
+    for id in tracks["entity"].unique():
+        entity = tracks[tracks["entity"] == id]
+        if entity["y"].max() - entity["y"].min() < cuttoff:
+            tracks = tracks[tracks["entity"] != id]
+    return tracks
 
 
 def save_trajectories(traj_df, path):

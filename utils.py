@@ -158,27 +158,6 @@ def detect(tiff_path, loadstar, batch_size=10, alpha=0.999, cutoff=1e-2, plot=Fa
     return detections_df
 
 
-def remove_still_objects(
-    tracks_df,
-    cuttoff=10,
-):
-    """
-    Remove still objects from the tracks dataframe.
-
-    Args:
-        tracks_df (pandas.DataFrame): Tracks dataframe.
-
-    Returns:
-        pandas.DataFrame: Tracks dataframe with still objects removed.
-    """
-    tracks = tracks_df.copy()
-    for id in tracks["entity"].unique():
-        entity = tracks[tracks["entity"] == id]
-        if entity["y"].max() - entity["y"].min() < cuttoff:
-            tracks = tracks[tracks["entity"] != id]
-    return tracks
-
-
 def save_detections(detection_df, path, full=False):
     """
     Save the detected objects to a CSV file.
