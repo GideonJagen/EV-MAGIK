@@ -154,6 +154,34 @@ def plot_trajectories(tracks, filepath, outpath, pages_batch_size=1, stop=None):
                 break
 
 
+def distance_traveled(tracks_df):
+    """
+    Calculate the distance traveled by each object in the tracks dataframe.
+
+    Args:
+        tracks_df (pandas.DataFrame): Tracks dataframe.
+
+    Returns:
+        pandas.DataFrame: Distance traveled by each object.
+    """
+    tracks = tracks_df.copy()
+    tracks = delta_distance(tracks)
+    tracks["traveled_y"] = tracks.groupby("entity")["delta_y"].cumsum()
+    tracks["traveled_x"] = tracks.groupby("entity")["delta_x"].cumsum()
+
+    tracks.sort_values(["frame", "entity"], inplace=True)
+
+    return tracks
+
+
+def delta_distance(tracks_df):
+    sorted_tracks = tracks_df.sort_values(["entity", "frame"])
+    sorted_tracks["delta_y"] = abs(sorted_tracks["y"].diff())
+    sorted_tracks["delta_x"] = abs(sorted_tracks["x"].diff())
+    sorted_tracks.loc[sorted_tracks["entity"].diff() != 0, ["delta_y", "delta_x"]] = 0
+    return sorted_tracks
+
+
 def remove_still_objects(
     tracks_df,
     cuttoff=10,
