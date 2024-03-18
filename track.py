@@ -154,6 +154,24 @@ def plot_trajectories(tracks, filepath, outpath, pages_batch_size=1, stop=None):
                 break
 
 
+def count_appearances(tracks_df):
+    """
+    Add a column to the tracks dataframe counting how many frames an entity has appeared in.
+
+    Args:
+        tracks_df (pandas.DataFrame): Tracks dataframe.
+
+    Returns:
+        pandas.DataFrame: Tracks dataframe with the 'appearances' column added.
+    """
+    tracks = tracks_df.copy()
+    tracks["frame_count"] = tracks.groupby("entity")["frame"].cumsum()
+    tracks["frame_count"] = tracks.groupby("entity")["frame_count"].transform(
+        lambda x: x - x.iloc[0]
+    )
+    return tracks
+
+
 def distance_traveled(tracks_df):
     """
     Calculate the distance traveled by each object in the tracks dataframe.
