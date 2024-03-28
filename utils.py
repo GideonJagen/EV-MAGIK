@@ -158,7 +158,7 @@ def detect(tiff_path, loadstar, batch_size=10, alpha=0.999, cutoff=1e-2, plot=Fa
     return detections_df
 
 
-def warp_xaxis(detections_df, ratio):
+def warp_axis(detections_df, ratio, axis_name="centroid-0"):
     """
     Warp the x-axis of the detected objects.
 
@@ -170,11 +170,11 @@ def warp_xaxis(detections_df, ratio):
         pandas.DataFrame: Warped detected objects.
     """
     detections_df_w = detections_df.copy()
-    detections_df_w["centroid-0"] = detections_df_w["centroid-0"] * ratio
+    detections_df_w[axis_name] = detections_df_w[axis_name] * ratio
     return detections_df_w
 
 
-def unwarp_xaxis(detections_df, ratio):
+def unwarp_axis(detections_df, ratio, axis_name="centroid-0"):
     """
     Warp the x-axis of the detected objects.
 
@@ -186,7 +186,7 @@ def unwarp_xaxis(detections_df, ratio):
         pandas.DataFrame: Warped detected objects.
     """
     detections_df_w = detections_df.copy()
-    detections_df_w["centroid-0"] = detections_df_w["centroid-0"] / ratio
+    detections_df_w[axis_name] = detections_df_w[axis_name] / ratio
     return detections_df_w
 
 

@@ -1,0 +1,2 @@
+model_checkpoint_path: "loadstar_first"
+all_model_checkpoint_paths: "loadstar_first"
