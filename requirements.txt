@@ -6,4 +6,4 @@ tensorflow_probability==0.23
 tf-keras==2.15
 h5py==3.10
 deeptrack==1.6
-tifffile==2023.12
+tifffile==2023.12.09
