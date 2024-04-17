@@ -158,6 +158,70 @@ def detect(tiff_path, loadstar, batch_size=10, alpha=0.999, cutoff=1e-2, plot=Fa
     return detections_df
 
 
+def track_intensity(tracks_df, batch_size=10, tiff_path=None, mode="mean"):
+    """
+    Track the intensity of entities in a DataFrame.
+
+    Args:
+        tracks_df (pandas.DataFrame): The DataFrame containing the tracks data.
+        batch_size (int, optional): The batch size for processing the tracks. Defaults to 10.
+        tiff_path (str, optional): The path to the TIFF file. Defaults to None.
+        mode (str, optional): The mode for tracking intensity. Can be "mean" or "max". Defaults to "mean".
+
+    Returns:
+        pandas.Series: A Series containing the tracked intensities for each entity.
+
+    Raises:
+        ValueError: If the column 'intensity' is not found in the tracks_df.
+        ValueError: If an invalid mode is provided.
+    """
+    if "intensity" in tracks_df.columns:
+        # Code to track intensity
+        if mode == "mean":
+            track_intensities = tracks_df.groupby("entity")["intensity"].mean()
+        elif mode == "max":
+            track_intensities = tracks_df.groupby("entity")["intensity"].max()
+        else:
+            raise ValueError("Invalid mode.")
+        return track_intensities
+    else:
+        raise ValueError("Column 'intensity' not found in tracks_df.")
+
+
+def detection_intensity(
+    tiff_path, detections_df, batch_size=10, mode="pixel", kernel_size=None
+):
+    """
+    Extract the intensities of detected objects in a TIFF file.
+
+    Args:
+        tiff_path (str): Path to the TIFF file.
+        detections_df (pandas.DataFrame): Detected objects.
+        batch_size (int): Number of frames to process in each batch.
+        mode (str): Mode to extract intensity. Can be "pixel", "mean", or "max".
+        kernel_size (int): Kernel size for mean and max modes.
+    Returns:
+        pandas.DataFrame: Detected objects with intensities.
+    """
+    if mode == "pixel":
+        return _intensity_pixel(tiff_path, detections_df, batch_size)
+    elif mode == "mean":
+        if kernel_size is None:
+            raise ValueError("Kernel size must be provided for mean mode.")
+        return _intensity_kernel(
+            tiff_path, detections_df, batch_size, mode, kernel_size
+        )
+    elif mode == "max":
+        if kernel_size is None:
+            raise ValueError("Kernel size must be provided for max mode.")
+        return _intensity_kernel(
+            tiff_path, detections_df, batch_size, mode, kernel_size
+        )
+
+    else:
+        raise ValueError("Invalid mode.")
+
+
 def warp_axis(detections_df, ratio, axis_name="centroid-0"):
     """
     Warp the x-axis of the detected objects.
@@ -260,3 +324,134 @@ def _detections_to_df(detections_list, file_page_shape):
     detection_df["centroid-0"] /= file_page_shape[1]
 
     return detection_df
+
+
+def _intensity_pixel(tiff_path, detections_df, batch_size=10):
+    detections_df = detections_df.copy()
+    detections_df["intensity"] = np.nan
+
+    file = tifffile.TiffFile(Path(tiff_path))
+
+    n_pages = len(file.pages)
+    iterations = n_pages // batch_size
+
+    with tqdm(total=iterations, position=0, leave=True) as pbar:
+        for i in tqdm(range(iterations), position=0, leave=True):
+            pbar.update()
+            pages = file.pages[i * batch_size : min((i + 1) * batch_size, n_pages - 1)]
+            frames = np.array([page.asarray() for page in pages])
+            frames = frames.astype(np.float32)
+
+            # frames = np.expand_dims(frames, -1)
+
+            detections = detections_df[
+                (detections_df["frame"] >= i * batch_size)
+                & (detections_df["frame"] < i * batch_size + batch_size)
+            ]
+
+            frame, x, y = (
+                detections["frame"].values.astype(int) - i * batch_size,
+                detections["x"].values.astype(int),
+                detections["y"].values.astype(int),
+            )
+
+            intensities = frames[frame, y, x]
+
+            detections_df.loc[
+                (detections_df["frame"] >= i * batch_size)
+                & (detections_df["frame"] < i * batch_size + batch_size),
+                "intensity",
+            ] = intensities
+
+    return detections_df
+
+
+def _intensity_kernel(tiff_path, detections_df, batch_size, mode, kernel_size):
+    detections_df = detections_df.copy()
+    detections_df["intensity"] = np.nan
+
+    file = tifffile.TiffFile(Path(tiff_path))
+
+    n_pages = len(file.pages)
+    iterations = n_pages // batch_size
+
+    with tqdm(total=iterations, position=0, leave=True) as pbar:
+        for i in tqdm(range(iterations), position=0, leave=True):
+            pbar.update()
+            pages = file.pages[i * batch_size : min((i + 1) * batch_size, n_pages - 1)]
+            frames = np.array([page.asarray() for page in pages])
+            frames = frames.astype(np.float32)
+
+            # frames = np.expand_dims(frames, -1)
+
+            detections = detections_df[
+                (detections_df["frame"] >= i * batch_size)
+                & (detections_df["frame"] < i * batch_size + batch_size)
+            ]
+
+            frame, x, y = (
+                detections["frame"].values.astype(int) - i * batch_size,
+                detections["x"].values.astype(int),
+                detections["y"].values.astype(int),
+            )
+
+            kernel_half = (kernel_size - 1) // 2
+            intensities = []
+            for f, cx, cy in zip(frame, x, y):
+                xmin = max(0, cx - kernel_half)
+                xmax = min(frames.shape[2] - 1, cx + kernel_half)
+                ymin = max(0, cy - kernel_half)
+                ymax = min(frames.shape[1] - 1, cy + kernel_half)
+                area = frames[f, ymin : ymax + 1, xmin : xmax + 1]
+                if mode == "mean":
+                    intensity = np.mean(area)
+                elif mode == "max":
+                    intensity = np.max(area)
+                else:
+                    raise ValueError("Invalid mode.")
+                intensities.append(intensity)
+            intensities = np.array(intensities)
+
+            detections_df.loc[
+                (detections_df["frame"] >= i * batch_size)
+                & (detections_df["frame"] < i * batch_size + batch_size),
+                "intensity",
+            ] = intensities
+
+    return detections_df
+
+
+def _intensities_max(tiff_path, detections_df, batch_size, kernel_size):
+    detections_df_i = detections_df.copy()
+    detections_df_i["intensity"] = np.nan
+
+    file = tifffile.TiffFile(Path(tiff_path))
+
+    n_pages = len(file.pages)
+    iterations = n_pages // batch_size
+
+    with tqdm(total=iterations, position=0, leave=True) as pbar:
+        for i in tqdm(range(iterations), position=0, leave=True):
+            pbar.update()
+            pages = file.pages[i * batch_size : min((i + 1) * batch_size, n_pages - 1)]
+            frames = np.array([page.asarray() for page in pages])
+            frames = frames.astype(np.float32)
+            frames = frames - frames.mean()
+            frames = frames / np.std(frames, axis=(0, 1, 2), keepdims=True) / 3
+
+            frames = np.expand_dims(frames, -1)
+
+            for j, detections in enumerate(
+                detections_df_i[detections_df_i["frame"] == i].values
+            ):
+                x, y = detections[-2], detections[-1]
+                x, y = int(x * file.pages[0].shape[1]), int(y * file.pages[0].shape[0])
+
+                intensity = frames[j, y, x]
+                detections_df_i.loc[
+                    (detections_df_i["frame"] == i)
+                    & (detections_df_i["label"] == detections[2]),
+                    "intensity",
+                ] = intensity
+
+    return detections_df_i
