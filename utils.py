@@ -88,6 +88,58 @@ def load_magik_model(weight_name="MAGIK_MP_MPN"):
     return magik
 
 
+def test_loadstar(tiff_path, loadstar, alpha, cutoff, n_test_frames):
+    """
+    Test the Loadstar model on a TIFF file.
+
+    Args:
+        tiff_path (str): Path to the TIFF file.
+        loadstar (deeptrack.models.LodeSTAR): Loaded Loadstar model.
+        alpha (float): Alpha parameter for detection.
+        cutoff (float): Cutoff parameter for detection.
+        n_test_frames (int): Number of frames to test.
+
+    Returns:
+        list: List of detected objects.
+    """
+    detections_list = []
+
+    file = tifffile.TiffFile(Path(tiff_path))
+
+    pages = file.pages[:n_test_frames]
+    frames = np.array([page.asarray() for page in pages])
+    frames = frames.astype(np.float32)
+    frames = frames - frames.mean()
+    frames = frames / np.std(frames, axis=(0, 1), keepdims=True) / 3
+
+    frames = np.expand_dims(frames, -1)
+
+    stdout_trap = io.StringIO()
+    sys.stdout = stdout_trap
+    detections = loadstar.predict_and_detect(
+        frames,
+        alpha=alpha,
+        beta=1 - alpha,
+        cutoff=cutoff,
+        mode="ratio",
+    )
+    sys.stdout = sys.__stdout__
+
+    for j, detections in enumerate(detections):
+        plt.figure(figsize=(10, 10))
+        plt.imshow(frames[j], cmap="gray")
+        plt.scatter(
+            detections[:, 1],
+            detections[:, 0],
+            marker="o",
+            color="r",
+            s=100,
+            facecolors="none",
+        )
+
+    return detections_list
+
+
 def detect(tiff_path, loadstar, batch_size=10, alpha=0.999, cutoff=1e-2, plot=False):
     """
     Detect objects in a TIFF file using the Loadstar model.
