@@ -189,7 +189,11 @@ def track_intensity(tracks_df, batch_size=10, tiff_path=None, mode="mean"):
 
 
 def detection_intensity(
-    tiff_path, detections_df, batch_size=10, mode="pixel", kernel_size=None
+    tiff_path,
+    detections_df,
+    batch_size=10,
+    mode="pixel",
+    kernel_size=None,  # Change to radius
 ):
     """
     Extract the intensities of detected objects in a TIFF file.
@@ -273,11 +277,13 @@ def save_detections(detection_df, path, full=False):
 
 def load_detections(path):
     """
-    Save the detected objects to a CSV file.
+    Loade detected objects from CSV file.
 
     Args:
-        detection_df (pandas.DataFrame): Detected objects.
-        path (str): Path to save the CSV file.
+        path (str): Path to load the CSV file.
+
+    Returns:
+        pandas.DataFrame: Detected objects.
     """
     # detection_df_d.drop(columns=["set", "label", "solution"], inplace=True)
     # detection_df_d.to_csv(path, index=False)
