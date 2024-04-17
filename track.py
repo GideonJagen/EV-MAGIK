@@ -81,6 +81,9 @@ def plot_trajectories(tracks, filepath, outpath, pages_batch_size=1, stop=None):
         stop (int): Stops the plotting after frame with number stop is plotted, Default: None.
     """
 
+    if not Path(f"{outpath}/tracked_images").exists():
+        Path(f"{outpath}/tracked_images").mkdir(parents=True, exist_ok=True)
+
     file = tifffile.TiffFile(Path(filepath))
     n_pages = len(file.pages)
 
