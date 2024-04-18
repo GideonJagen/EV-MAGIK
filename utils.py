@@ -477,39 +477,3 @@ def _intensity_kernel(tiff_path, detections_df, batch_size, mode, kernel_size):
             ] = intensities
 
     return detections_df
-
-
-def _intensities_max(tiff_path, detections_df, batch_size, kernel_size):
-    detections_df_i = detections_df.copy()
-    detections_df_i["intensity"] = np.nan
-
-    file = tifffile.TiffFile(Path(tiff_path))
-
-    n_pages = len(file.pages)
-    iterations = n_pages // batch_size
-
-    with tqdm(total=iterations, position=0, leave=True) as pbar:
-        for i in tqdm(range(iterations), position=0, leave=True):
-            pbar.update()
-            pages = file.pages[i * batch_size : min((i + 1) * batch_size, n_pages - 1)]
-            frames = np.array([page.asarray() for page in pages])
-            frames = frames.astype(np.float32)
-            frames = frames - frames.mean()
-            frames = frames / np.std(frames, axis=(0, 1, 2), keepdims=True) / 3
-
-            frames = np.expand_dims(frames, -1)
-
-            for j, detections in enumerate(
-                detections_df_i[detections_df_i["frame"] == i].values
-            ):
-                x, y = detections[-2], detections[-1]
-                x, y = int(x * file.pages[0].shape[1]), int(y * file.pages[0].shape[0])
-
-                intensity = frames[j, y, x]
-                detections_df_i.loc[
-                    (detections_df_i["frame"] == i)
-                    & (detections_df_i["label"] == detections[2]),
-                    "intensity",
-                ] = intensity
-
-    return detections_df_i
