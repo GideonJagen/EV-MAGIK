@@ -39,37 +39,48 @@ def predict_trajectories(model, detections, radius=0.08, nframes=7, threshold=6)
         nofframes=nframes,
     )
 
-    print("Predicting trajectories...")
-    pred, gt, scores, graph = dt.models.gnns.get_predictions(
-        detections, ["centroid"], model, **variables.properties()
-    )
-    print("Creating dataframe...")
-    edges_df, nodes, _ = dt.models.gnns.df_from_results(pred, gt, scores, graph)
+    nodes_df = pd.DataFrame(columns=["set", "frame", "y", "x", "entity"])
 
-    print("Getting trajectories...")
-    trajs = dt.models.gnns.to_trajectories(edges_df=edges_df)
-    trajs = list(filter(lambda t: len(t) > threshold, trajs))
-    trajs = [sorted(t) for t in trajs]
+    for set_num in detections["set"].unique():
 
-    object_index = np.zeros((nodes.shape[0]))
-    for i, traj in enumerate(trajs):
-        object_index[traj] = i + 1
+        set_detections = detections[detections["set"] == set_num].reset_index(drop=True)
+        # set_detections = set_detections.reindex()
 
-    nodes_df = pd.DataFrame(
-        {
-            "frame": nodes[:, 0],
-            "y": nodes[:, 1],
-            "x": nodes[:, 2],
-            "entity": object_index,
-        }
-    )
-    nodes_df = nodes_df[nodes_df["entity"] != 0]
-    print("Done!")
+        print("Predicting trajectories...")
+        pred, gt, scores, graph = dt.models.gnns.get_predictions(
+            set_detections, ["centroid"], model, **variables.properties()
+        )
+        print("Creating dataframe...")
+        edges_df, nodes, _ = dt.models.gnns.df_from_results(pred, gt, scores, graph)
+
+        print("Getting trajectories...")
+        trajs = dt.models.gnns.to_trajectories(edges_df=edges_df)
+        trajs = list(filter(lambda t: len(t) > threshold, trajs))
+        trajs = [sorted(t) for t in trajs]
+
+        object_index = np.zeros((nodes.shape[0]))
+        for i, traj in enumerate(trajs):
+            object_index[traj] = i + 1
+
+        nodes_df_set = pd.DataFrame(
+            {
+                "set": set_num,
+                "frame": nodes[:, 0],
+                "y": nodes[:, 1],
+                "x": nodes[:, 2],
+                "entity": object_index,
+            }
+        )
+        nodes_df_set = nodes_df_set[nodes_df_set["entity"] != 0]
+        nodes_df = pd.concat([nodes_df, nodes_df_set])
+        print("Done!")
 
     return nodes_df
 
 
-def plot_trajectories(tracks, filepath, outpath, pages_batch_size=1, stop=None):
+def plot_trajectories(
+    tracks, filepath, outpath, pages_batch_size=1, set_nums=[0], stop=None
+):
     """
     Plot the predicted trajectories.
 
@@ -84,77 +95,84 @@ def plot_trajectories(tracks, filepath, outpath, pages_batch_size=1, stop=None):
     if not Path(f"{outpath}/tracked_images").exists():
         Path(f"{outpath}/tracked_images").mkdir(parents=True, exist_ok=True)
 
-    file = tifffile.TiffFile(Path(filepath))
-    n_pages = len(file.pages)
+    for i in set_nums:
+        tracks_set = tracks[tracks["set"] == i]
 
-    top = cm.get_cmap("Oranges_r")
-    bottom = cm.get_cmap("Blues_r")
+        file = tifffile.TiffFile(Path(filepath[i]))
+        n_pages = len(file.pages)
 
-    colors = np.vstack(
-        (
-            top(np.linspace(0, 1, int(np.ceil(tracks["entity"].max() / 2)))),
-            bottom(np.linspace(0, 1, int(np.ceil(tracks["entity"].max() / 2)))),
+        top = cm.get_cmap("Oranges_r")
+        bottom = cm.get_cmap("Blues_r")
+
+        colors = np.vstack(
+            (
+                top(np.linspace(0, 1, int(np.ceil(tracks_set["entity"].max() / 2)))),
+                bottom(np.linspace(0, 1, int(np.ceil(tracks_set["entity"].max() / 2)))),
+            )
         )
-    )
-    np.random.shuffle(colors)
+        np.random.shuffle(colors)
 
-    if stop:
-        iterations = int(stop // pages_batch_size + 1 + (stop % pages_batch_size > 0))
-    else:
-        iterations = int(
-            tracks["frame"].max() // pages_batch_size
-            + 1
-            + (tracks["frame"].max() % pages_batch_size > 0)
-        )
+        if stop:
+            iterations = int(
+                stop // pages_batch_size + 1 + (stop % pages_batch_size > 0)
+            )
+        else:
+            iterations = int(
+                tracks_set["frame"].max() // pages_batch_size
+                + 1
+                + (tracks_set["frame"].max() % pages_batch_size > 0)
+            )
 
-    for i in tqdm(range(iterations)):
-        pages = file.pages[
-            i * pages_batch_size : min((i + 1) * pages_batch_size, n_pages - 1)
-        ]
-        frames = np.array([page.asarray() for page in pages])
-        frames = frames.astype(np.float32)
-
-        # Plot
-        for f, image in enumerate(frames):
-            plt.figure(figsize=(15, 15))
-            plt.imshow(image, cmap="gray")
-            plt.text(0, 2, "Frame: " + str(f), fontsize=20, c="white")
-
-            detections = tracks[(tracks["frame"] == i * pages_batch_size + f)]
-            trail = tracks[
-                (tracks["frame"] < i * pages_batch_size + f)
-                & (tracks["frame"] >= i * pages_batch_size + f - 10)
+        for j in tqdm(range(iterations)):
+            pages = file.pages[
+                j * pages_batch_size : min((j + 1) * pages_batch_size, n_pages - 1)
             ]
+            frames = np.array([page.asarray() for page in pages])
+            frames = frames.astype(np.float32)
 
-            for t in trail["entity"].unique():
-                entity_trail = trail[trail["entity"] == t]
-                plt.plot(
-                    entity_trail["x"],
-                    entity_trail["y"],
-                    color=colors[int(t)],
-                    linewidth=1.5,
+            # Plot
+            for f, image in enumerate(frames):
+                plt.figure(figsize=(15, 15))
+                plt.imshow(image, cmap="gray")
+                plt.text(0, 2, "Frame: " + str(f), fontsize=20, c="white")
+
+                detections = tracks_set[
+                    (tracks_set["frame"] == j * pages_batch_size + f)
+                ]
+                trail = tracks_set[
+                    (tracks_set["frame"] < j * pages_batch_size + f)
+                    & (tracks_set["frame"] >= j * pages_batch_size + f - 10)
+                ]
+
+                for t in trail["entity"].unique():
+                    entity_trail = trail[trail["entity"] == t]
+                    plt.plot(
+                        entity_trail["x"],
+                        entity_trail["y"],
+                        color=colors[int(t)],
+                        linewidth=1.5,
+                    )
+                plt.scatter(
+                    detections["x"],
+                    detections["y"],
+                    linewidths=1.5,
+                    color=colors[detections["entity"].astype(int)],
+                    marker="o",
+                    s=200,
+                    facecolors="none",
                 )
-            plt.scatter(
-                detections["x"],
-                detections["y"],
-                linewidths=1.5,
-                color=colors[detections["entity"].astype(int)],
-                marker="o",
-                s=200,
-                facecolors="none",
-            )
 
-            plt.savefig(
-                f"{Path(outpath)}/tracked_images/fig_{str(i*pages_batch_size + f).zfill(4)}.png"
-            )
+                plt.savefig(
+                    f"{Path(outpath)}/tracked_images/fig_set_{i}_img_{str(j*pages_batch_size + f).zfill(4)}.png"
+                )
 
-            # Clean up
-            plt.clf()
-            plt.close("all")
-            gc.collect()
+                # Clean up
+                plt.clf()
+                plt.close("all")
+                gc.collect()
 
-            if stop and i * pages_batch_size + f >= stop:
-                break
+                if stop and j * pages_batch_size + f >= stop:
+                    break
 
 
 def count_appearances(tracks_df):
