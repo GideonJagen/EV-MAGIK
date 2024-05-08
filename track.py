@@ -79,7 +79,7 @@ def predict_trajectories(model, detections, radius=0.08, nframes=7, threshold=6)
 
 
 def plot_trajectories(
-    tracks, filepath, outpath, pages_batch_size=1, set_nums=[0], stop=None
+    tracks, filepath, outpath, pages_batch_size=1, set_nums="all", stop=None
 ):
     """
     Plot the predicted trajectories.
@@ -95,6 +95,11 @@ def plot_trajectories(
     if not Path(f"{outpath}/tracked_images").exists():
         Path(f"{outpath}/tracked_images").mkdir(parents=True, exist_ok=True)
 
+    if set_nums == "all":
+        set_nums = tracks["set"].unique()
+    elif type(set_nums) is not list and type(set_nums) is not tuple:
+        set_nums = [set_nums]
+
     for i in set_nums:
         tracks_set = tracks[tracks["set"] == i]
 
@@ -106,8 +111,12 @@ def plot_trajectories(
 
         colors = np.vstack(
             (
-                top(np.linspace(0, 1, int(np.ceil(tracks_set["entity"].max() / 2)))),
-                bottom(np.linspace(0, 1, int(np.ceil(tracks_set["entity"].max() / 2)))),
+                top(
+                    np.linspace(0, 1, int(np.ceil(tracks_set["entity"].max() / 2)) + 1)
+                ),
+                bottom(
+                    np.linspace(0, 1, int(np.ceil(tracks_set["entity"].max() / 2)) + 1)
+                ),
             )
         )
         np.random.shuffle(colors)

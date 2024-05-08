@@ -155,11 +155,11 @@ def detect(image_paths, loadstar, batch_size=10, alpha=0.999, cutoff=1e-2, plot=
     Returns:
         pandas.DataFrame: Detected objects.
     """
-    detections_list = []
     detections_df = pd.DataFrame()
 
     for j, tiff_path in enumerate(image_paths):
 
+        detections_list = []
         file = tifffile.TiffFile(Path(tiff_path))
 
         n_pages = len(file.pages)
