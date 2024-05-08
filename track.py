@@ -85,10 +85,11 @@ def plot_trajectories(
     Plot the predicted trajectories.
 
     Args:
-        trajectories (pandas.DataFrame): Predicted trajectories.
+        tracks (pandas.DataFrame): DataFrame containing the predicted trajectories.
         filepath (str): Path to the video file.
         outpath (str): Path to save the plot.
         pages_batch_size (int): Number of pages to process at a time, Default: 1.
+        set_nums (list or int): Set numbers to plot trajectories for. If "all", plot trajectories for all sets. Default: "all".
         stop (int): Stops the plotting after frame with number stop is plotted, Default: None.
     """
 
@@ -196,7 +197,7 @@ def count_appearances(tracks_df):
     """
     tracks = tracks_df.copy()
     tracks["frame_count"] = tracks["frame"]
-    tracks["frame_count"] = tracks.groupby("entity")["frame_count"].transform(
+    tracks["frame_count"] = tracks.groupby(["set", "entity"])["frame_count"].transform(
         lambda x: x - x.iloc[0]
     )
     return tracks
@@ -213,9 +214,14 @@ def distance_traveled(tracks_df):
         pandas.DataFrame: Distance traveled by each object.
     """
     tracks = tracks_df.copy()
-    tracks = delta_distance(tracks)
-    tracks["traveled_y"] = tracks.groupby("entity")["delta_y"].cumsum()
-    tracks["traveled_x"] = tracks.groupby("entity")["delta_x"].cumsum()
+    for set_num in tracks["set"].unique():
+        tracks_set = tracks[tracks["set"] == set_num]
+        tracks_set = delta_distance(tracks_set)
+        tracks_set["traveled_y"] = tracks_set.groupby("entity")["delta_y"].cumsum()
+        tracks_set["traveled_x"] = tracks_set.groupby("entity")["delta_x"].cumsum()
+        tracks.loc[
+            tracks["set"] == set_num, ["delta_y", "delta_x", "traveled_y", "traveled_x"]
+        ] = tracks_set[["delta_y", "delta_x", "traveled_y", "traveled_x"]]
 
     # tracks.sort_values(["frame", "entity"], inplace=True)
 
@@ -244,10 +250,13 @@ def remove_still_objects(
         pandas.DataFrame: Tracks dataframe with still objects removed.
     """
     tracks = tracks_df.copy()
-    for id in tracks["entity"].unique():
-        entity = tracks[tracks["entity"] == id]
-        if entity["y"].max() - entity["y"].min() < cuttoff:
-            tracks = tracks[tracks["entity"] != id]
+    for set_num in tracks["set"].unique():
+        tracks_set = tracks[tracks["set"] == set_num]
+        for id in tracks_set["entity"].unique():
+            entity = tracks_set[tracks_set["entity"] == id]
+            if entity["y"].max() - entity["y"].min() < cuttoff:
+                tracks = tracks[(tracks["entity"] != id) | (tracks["set"] != set_num)]
+                # tracks = tracks[(tracks["entity"] != id) | (tracks["set"] != set_num)]
     return tracks
 
 
