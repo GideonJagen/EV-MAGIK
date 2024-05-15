@@ -260,6 +260,47 @@ def remove_still_objects(
     return tracks
 
 
+# This is a very basic combine tracks function, will be improved in the future
+# To include things like the y value and the distance between the tracks
+def combine_tracks(tracks_df, channel_width, combine_length=10, remove_length=50):
+    """
+    Combine tracks that match in x value with existing tracks.
+
+    Args:
+        tracks_df (pandas.DataFrame): Tracks dataframe.
+
+        combine_length (int): The maximum number of frames that can separate two tracks for them to be combined.
+
+        remove_length (int): The maximum number of frames that can separate a track from its previous frames for it to be removed.
+
+    Returns:
+        pandas.DataFrame: Combined tracks dataframe.
+    """
+    tracks = tracks_df.copy()
+    for entity in tracks["entity"].unique():
+        entity_tracks = tracks[tracks["entity"] == entity]
+        first_frame = entity_tracks["frame"].min()
+        x_first_frame = entity_tracks[entity_tracks["frame"] == first_frame][
+            "x"
+        ].values[0]
+
+        prev_frames = tracks[
+            ((tracks["frame"] <= first_frame))
+            & (tracks["x"] < x_first_frame + channel_width)
+            & (tracks["x"] > x_first_frame - channel_width)
+        ]
+
+        if abs(prev_frames["frame"].values[0] - first_frame) < combine_length:
+            # This works because the entity numbers are lower the earlier they appear
+            # And the dataframe is sorted by entity number
+            entity_prev = prev_frames["entity"].values[0]
+            tracks.loc[tracks["entity"] == entity, "entity"] = entity_prev
+        elif abs(prev_frames["frame"].values[0] - first_frame) < remove_length:
+            tracks = tracks[tracks["entity"] != entity]
+
+    return tracks
+
+
 def save_trajectories(traj_df, path):
     """
     Save the predicted trajectories to a CSV file.
