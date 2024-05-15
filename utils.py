@@ -140,7 +140,7 @@ def test_loadstar(tiff_path, loadstar, alpha, cutoff, n_test_frames):
     return detections_list
 
 
-def detect(tiff_path, loadstar, batch_size=10, alpha=0.999, cutoff=1e-2, plot=False):
+def detect(image_paths, loadstar, batch_size=10, alpha=0.999, cutoff=1e-2, plot=False):
     """
     Detect objects in a TIFF file using the Loadstar model.
 
@@ -155,57 +155,67 @@ def detect(tiff_path, loadstar, batch_size=10, alpha=0.999, cutoff=1e-2, plot=Fa
     Returns:
         pandas.DataFrame: Detected objects.
     """
-    detections_list = []
+    detections_df = pd.DataFrame()
 
-    file = tifffile.TiffFile(Path(tiff_path))
+    for j, tiff_path in enumerate(image_paths):
 
-    n_pages = len(file.pages)
-    iterations = n_pages // batch_size
+        detections_list = []
+        file = tifffile.TiffFile(Path(tiff_path))
 
-    with tqdm(total=iterations, position=0, leave=True) as pbar:
-        for i in tqdm(range(iterations), position=0, leave=True):
-            pbar.update()
-            pages = file.pages[i * batch_size : min((i + 1) * batch_size, n_pages - 1)]
-            frames = np.array([page.asarray() for page in pages])
-            frames = frames.astype(np.float32)
-            frames = frames - frames.mean()
-            frames = frames / np.std(frames, axis=(0, 1, 2), keepdims=True) / 3
+        n_pages = len(file.pages)
+        iterations = n_pages // batch_size
 
-            frames = np.expand_dims(frames, -1)
+        with tqdm(total=iterations, position=0, leave=True) as pbar:
+            for i in tqdm(range(iterations), position=0, leave=True):
+                pbar.update()
+                pages = file.pages[
+                    i * batch_size : min((i + 1) * batch_size, n_pages - 1)
+                ]
+                frames = np.array([page.asarray() for page in pages])
+                frames = frames.astype(np.float32)
+                frames = frames - frames.mean()
+                frames = frames / np.std(frames, axis=(0, 1, 2), keepdims=True) / 3
 
-            stdout_trap = io.StringIO()
-            sys.stdout = stdout_trap
-            detections_all = loadstar.predict_and_detect(
-                frames, alpha=alpha, beta=1 - alpha, cutoff=cutoff, mode="ratio"
-            )
-            sys.stdout = sys.__stdout__
+                frames = np.expand_dims(frames, -1)
 
-            detections_list.append(detections_all)
+                stdout_trap = io.StringIO()
+                sys.stdout = stdout_trap
+                detections_all = loadstar.predict_and_detect(
+                    frames, alpha=alpha, beta=1 - alpha, cutoff=cutoff, mode="ratio"
+                )
+                sys.stdout = sys.__stdout__
 
-            if plot:
-                for j, detections in enumerate(detections_all):
-                    plt.figure(figsize=(10, 10))
-                    plt.imshow(frames[j], cmap="gray")
-                    plt.scatter(
-                        detections[:, 1],
-                        detections[:, 0],
-                        marker="o",
-                        color="r",
-                        s=100,
-                        facecolors="none",
-                    )
-                    plt.savefig(
-                        "../output/detected_images/fig_{}.png".format(
-                            str(i * batch_size + j).zfill(4)
+                detections_list.append(detections_all)
+
+                if plot:
+                    for j, detections in enumerate(detections_all):
+                        plt.figure(figsize=(10, 10))
+                        plt.imshow(frames[j], cmap="gray")
+                        plt.scatter(
+                            detections[:, 1],
+                            detections[:, 0],
+                            marker="o",
+                            color="r",
+                            s=100,
+                            facecolors="none",
                         )
-                    )
+                        plt.savefig(
+                            "../output/detected_images/fig_{}.png".format(
+                                str(i * batch_size + j).zfill(4)
+                            )
+                        )
 
-                    plt.cla()
-                    plt.clf()
-                    plt.close("all")
-                    gc.collect()
+                        plt.cla()
+                        plt.clf()
+                        plt.close("all")
+                        gc.collect()
 
-    detections_df = _detections_to_df(detections_list, file.pages[0].shape)
+        detections_df = pd.concat(
+            [
+                detections_df,
+                _detections_to_df(detections_list, file.pages[0].shape, set=j),
+            ]
+        )
 
     return detections_df
 
@@ -323,7 +333,7 @@ def save_detections(detection_df, path, full=False):
     """
     detection_df_d = detection_df.copy()
     if not full:
-        detection_df_d.drop(columns=["set", "label", "solution"], inplace=True)
+        detection_df_d.drop(columns=["label", "solution"], inplace=True)
     detection_df_d.to_csv(path, index=False)
 
 
@@ -343,7 +353,7 @@ def load_detections(path):
     return detection_df
 
 
-def _detections_to_df(detections_list, file_page_shape):
+def _detections_to_df(detections_list, file_page_shape, set):
     size = 0
     for detections_all in detections_list:
         for detections in detections_all:
@@ -364,6 +374,8 @@ def _detections_to_df(detections_list, file_page_shape):
             )
             traversed += detections.shape[0]
         list_traversed += len(detections_all)
+
+    detection_array[:, 1] = set
 
     detection_df = pd.DataFrame(
         detection_array,
