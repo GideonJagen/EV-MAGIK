@@ -240,9 +240,9 @@ def track_intensity(tracks_df, batch_size=10, tiff_path=None, mode="mean"):
     if "intensity" in tracks_df.columns:
         # Code to track intensity
         if mode == "mean":
-            track_intensities = tracks_df.groupby("entity")["intensity"].mean()
+            track_intensities = tracks_df.groupby(["set", "entity"])["intensity"].mean()
         elif mode == "max":
-            track_intensities = tracks_df.groupby("entity")["intensity"].max()
+            track_intensities = tracks_df.groupby(["set", "entity"])["intensity"].max()
         else:
             raise ValueError("Invalid mode.")
         return track_intensities
@@ -251,7 +251,7 @@ def track_intensity(tracks_df, batch_size=10, tiff_path=None, mode="mean"):
 
 
 def detection_intensity(
-    tiff_path,
+    image_paths,
     detections_df,
     batch_size=10,
     mode="pixel",
@@ -269,23 +269,33 @@ def detection_intensity(
     Returns:
         pandas.DataFrame: Detected objects with intensities.
     """
-    if mode == "pixel":
-        return _intensity_pixel(tiff_path, detections_df, batch_size)
-    elif mode == "mean":
-        if kernel_size is None:
-            raise ValueError("Kernel size must be provided for mean mode.")
-        return _intensity_kernel(
-            tiff_path, detections_df, batch_size, mode, kernel_size
-        )
-    elif mode == "max":
-        if kernel_size is None:
-            raise ValueError("Kernel size must be provided for max mode.")
-        return _intensity_kernel(
-            tiff_path, detections_df, batch_size, mode, kernel_size
-        )
+    dfs = []
 
-    else:
-        raise ValueError("Invalid mode.")
+    for i, tiff_path in enumerate(image_paths):
+        detections_df = detections_df[detections_df["set"] == i]
+        if mode == "pixel":
+            dfs.append(_intensity_pixel(tiff_path, detections_df, batch_size))
+        elif mode == "mean":
+            if kernel_size is None:
+                raise ValueError("Kernel size must be provided for mean mode.")
+            dfs.append(
+                _intensity_kernel(
+                    tiff_path, detections_df, batch_size, mode, kernel_size
+                )
+            )
+        elif mode == "max":
+            if kernel_size is None:
+                raise ValueError("Kernel size must be provided for max mode.")
+            dfs.append(
+                _intensity_kernel(
+                    tiff_path, detections_df, batch_size, mode, kernel_size
+                )
+            )
+        else:
+            raise ValueError("Invalid mode.")
+
+    detections_df = pd.concat(dfs)
+    return detections_df
 
 
 def warp_axis(detections_df, ratio, axis_name="centroid-0"):
