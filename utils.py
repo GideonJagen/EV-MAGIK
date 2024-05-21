@@ -270,15 +270,15 @@ def detection_intensity(
     dfs = []
 
     for i, tiff_path in enumerate(image_paths):
-        detections_df = detections_df[detections_df["set"] == i]
+        detections_set = detections_df[detections_df["set"] == i]
         if mode == "pixel":
-            dfs.append(_intensity_pixel(tiff_path, detections_df, batch_size))
+            dfs.append(_intensity_pixel(tiff_path, detections_set, batch_size))
         elif mode == "mean":
             if kernel_size is None:
                 raise ValueError("Kernel size must be provided for mean mode.")
             dfs.append(
                 _intensity_kernel(
-                    tiff_path, detections_df, batch_size, mode, kernel_size
+                    tiff_path, detections_set, batch_size, mode, kernel_size
                 )
             )
         elif mode == "max":
@@ -286,7 +286,7 @@ def detection_intensity(
                 raise ValueError("Kernel size must be provided for max mode.")
             dfs.append(
                 _intensity_kernel(
-                    tiff_path, detections_df, batch_size, mode, kernel_size
+                    tiff_path, detections_set, batch_size, mode, kernel_size
                 )
             )
         else:
@@ -366,7 +366,6 @@ def _detections_to_df(detections_list, file_page_shape, set):
     for detections_all in detections_list:
         for detections in detections_all:
             size += detections.shape[0]
-    print(size)
 
     detection_array = np.zeros((size, 6))
 

@@ -221,7 +221,7 @@ def distance_traveled(tracks_df):
         tracks_set["traveled_x"] = tracks_set.groupby("entity")["delta_x"].cumsum()
         tracks.loc[
             tracks["set"] == set_num, ["delta_y", "delta_x", "traveled_y", "traveled_x"]
-        ] = tracks_set[["delta_y", "delta_x", "traveled_y", "traveled_x"]]
+        ] = tracks_set[["delta_y", "delta_x", "traveled_y", "traveled_x"]].values
 
     # tracks.sort_values(["frame", "entity"], inplace=True)
 
