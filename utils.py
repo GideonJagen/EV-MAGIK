@@ -88,6 +88,7 @@ def load_magik_model(weight_name="MAGIK_MP_MPN"):
     return magik
 
 
+# n_test_frames - allow for slices
 def test_loadstar(tiff_path, loadstar, alpha, cutoff, n_test_frames):
     """
     Test the Loadstar model on a TIFF file.
@@ -114,8 +115,6 @@ def test_loadstar(tiff_path, loadstar, alpha, cutoff, n_test_frames):
 
     frames = np.expand_dims(frames, -1)
 
-    stdout_trap = io.StringIO()
-    sys.stdout = stdout_trap
     detections = loadstar.predict_and_detect(
         frames,
         alpha=alpha,
@@ -123,7 +122,6 @@ def test_loadstar(tiff_path, loadstar, alpha, cutoff, n_test_frames):
         cutoff=cutoff,
         mode="ratio",
     )
-    sys.stdout = sys.__stdout__
 
     for j, detections in enumerate(detections):
         plt.figure(figsize=(10, 10))
