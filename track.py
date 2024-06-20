@@ -214,6 +214,7 @@ def distance_traveled(tracks_df):
         pandas.DataFrame: Distance traveled by each object.
     """
     tracks = tracks_df.copy()
+    tracks = tracks.sort_values(["set", "entity", "frame"])
     for set_num in tracks["set"].unique():
         tracks_set = tracks[tracks["set"] == set_num]
         tracks_set = delta_distance(tracks_set)
@@ -230,8 +231,9 @@ def distance_traveled(tracks_df):
 
 def delta_distance(tracks_df):
     sorted_tracks = tracks_df.sort_values(["entity", "frame"])
-    sorted_tracks["delta_y"] = abs(sorted_tracks["y"].diff())
-    sorted_tracks["delta_x"] = abs(sorted_tracks["x"].diff())
+
+    sorted_tracks["delta_y"] = abs(sorted_tracks.groupby("entity")["y"].diff())
+    sorted_tracks["delta_x"] = abs(sorted_tracks.groupby("entity")["x"].diff())
     sorted_tracks.loc[sorted_tracks["entity"].diff() != 0, ["delta_y", "delta_x"]] = 0
     return sorted_tracks
 
