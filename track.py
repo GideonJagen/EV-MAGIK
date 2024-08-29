@@ -203,12 +203,13 @@ def count_appearances(tracks_df):
     return tracks
 
 
-def distance_traveled(tracks_df):
+def distance_traveled(tracks_df, delta_abs=False):
     """
     Calculate the distance traveled by each object in the tracks dataframe.
 
     Args:
         tracks_df (pandas.DataFrame): Tracks dataframe.
+        delta_abs (bool): If True, calculate the absolute value of the delta distance traveled. Default: False.
 
     Returns:
         pandas.DataFrame: Distance traveled by each object.
@@ -217,9 +218,13 @@ def distance_traveled(tracks_df):
     tracks = tracks.sort_values(["set", "entity", "frame"])
     for set_num in tracks["set"].unique():
         tracks_set = tracks[tracks["set"] == set_num]
-        tracks_set = delta_distance(tracks_set)
-        tracks_set["traveled_y"] = tracks_set.groupby("entity")["delta_y"].cumsum()
-        tracks_set["traveled_x"] = tracks_set.groupby("entity")["delta_x"].cumsum()
+        tracks_set = delta_distance(tracks_set, delta_abs)
+        tracks_set["traveled_y"] = (
+            tracks_set.abs().groupby("entity")["delta_y"].cumsum()
+        )
+        tracks_set["traveled_x"] = (
+            tracks_set.abs().groupby("entity")["delta_x"].cumsum()
+        )
         tracks.loc[
             tracks["set"] == set_num, ["delta_y", "delta_x", "traveled_y", "traveled_x"]
         ] = tracks_set[["delta_y", "delta_x", "traveled_y", "traveled_x"]].values
@@ -229,11 +234,16 @@ def distance_traveled(tracks_df):
     return tracks
 
 
-def delta_distance(tracks_df):
+def delta_distance(tracks_df, delta_abs):
     sorted_tracks = tracks_df.sort_values(["entity", "frame"])
 
-    sorted_tracks["delta_y"] = abs(sorted_tracks.groupby("entity")["y"].diff())
-    sorted_tracks["delta_x"] = abs(sorted_tracks.groupby("entity")["x"].diff())
+    sorted_tracks["delta_y"] = sorted_tracks.groupby("entity")["y"].diff()
+    sorted_tracks["delta_x"] = sorted_tracks.groupby("entity")["x"].diff()
+
+    if delta_abs:
+        sorted_tracks["delta_y"] = sorted_tracks["delta_y"].abs()
+        sorted_tracks["delta_x"] = sorted_tracks["delta_x"].abs()
+
     sorted_tracks.loc[sorted_tracks["entity"].diff() != 0, ["delta_y", "delta_x"]] = 0
     return sorted_tracks
 
